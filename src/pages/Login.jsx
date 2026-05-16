@@ -2,6 +2,8 @@ import { useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import MAJORS from '../data/majors'
 import { useUser } from '../context/UserContext'
+import { uploadTranscript } from '../api/academic'
+import { initUser } from '../api/user'
 
 function Login() {
   const [step, setStep] = useState(0) // 0: 구글 로그인, 1: PDF 업로드, 2~4: 정보 입력, 5: 완료
@@ -16,6 +18,8 @@ function Login() {
   const [career, setCareer] = useState('')
   const [pdfFile, setPdfFile] = useState(null)
   const [pdfDragging, setPdfDragging] = useState(false)
+  const [uploading, setUploading] = useState(false)
+  const [uploadResult, setUploadResult] = useState(null)
   const fileInputRef = useRef(null)
   const navigate = useNavigate()
   const { login } = useUser()
@@ -26,10 +30,23 @@ function Login() {
     setMajorTypes(prev => prev.includes(type) ? prev.filter(t => t !== type) : [...prev, type])
   }
 
-  const goStep = (n) => {
+  const goStep = async (n) => {
+    // PDF 업로드 → 백엔드 전송
+    if (n === 2 && pdfFile && !uploadResult) {
+      try {
+        setUploading(true)
+        const result = await uploadTranscript(pdfFile)
+        setUploadResult(result)
+      } catch (err) {
+        console.error('PDF 업로드 실패:', err)
+        // 실패해도 다음 단계로 진행 (백엔드 미연결 시)
+      } finally {
+        setUploading(false)
+      }
+    }
+
     if (n === 6) {
-      // 모든 정보를 Context + localStorage에 저장
-      login({
+      const userData = {
         name: '전민서', // TODO: Google OAuth에서 받아올 이름
         email: 'minseoj03@sookmyung.ac.kr',
         major: selectedMajor?.text || '',
@@ -41,8 +58,20 @@ function Login() {
         linkedMajor,
         career,
         pdfFileName: pdfFile?.name || null,
+        creditAnalysis: uploadResult || null,
         createdAt: new Date().toISOString(),
-      })
+      }
+
+      // 백엔드에 사용자 초기 설정 전송
+      try {
+        await initUser(userData)
+      } catch (err) {
+        console.error('사용자 초기 설정 전송 실패:', err)
+        // 실패해도 로컬에 저장하고 진행
+      }
+
+      // Context + localStorage에 저장
+      login(userData)
       navigate('/home')
       return
     }
@@ -187,14 +216,14 @@ function Login() {
               <div className="mt-6">
                 <button
                   onClick={() => goStep(2)}
-                  disabled={!pdfFile}
+                  disabled={!pdfFile || uploading}
                   className={`w-full py-3.5 rounded-xl text-sm font-bold transition ${
-                    pdfFile
+                    pdfFile && !uploading
                       ? 'bg-gradient-to-r from-green-700 to-green-600 text-white shadow-lg shadow-green-700/30 hover:-translate-y-0.5'
                       : 'bg-gray-200 text-gray-400 cursor-not-allowed'
                   }`}
                 >
-                  다음 →
+                  {uploading ? '업로드 중...' : '다음 →'}
                 </button>
               </div>
             </div>
