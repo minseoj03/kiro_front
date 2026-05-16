@@ -1,10 +1,10 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import MAJORS from '../data/majors'
 import { useUser } from '../context/UserContext'
 
 function Login() {
-  const [step, setStep] = useState(0) // 0: 구글 로그인, 1~4: 정보 입력
+  const [step, setStep] = useState(0) // 0: 구글 로그인, 1: PDF 업로드, 2~4: 정보 입력, 5: 완료
   const [majorTypes, setMajorTypes] = useState([])
   const [majorSearch, setMajorSearch] = useState('')
   const [selectedMajor, setSelectedMajor] = useState(null)
@@ -14,6 +14,9 @@ function Login() {
   const [doubleMajor, setDoubleMajor] = useState('')
   const [linkedMajor, setLinkedMajor] = useState('')
   const [career, setCareer] = useState('')
+  const [pdfFile, setPdfFile] = useState(null)
+  const [pdfDragging, setPdfDragging] = useState(false)
+  const fileInputRef = useRef(null)
   const navigate = useNavigate()
   const { login } = useUser()
 
@@ -24,7 +27,7 @@ function Login() {
   }
 
   const goStep = (n) => {
-    if (n === 5) {
+    if (n === 6) {
       // 모든 정보를 Context + localStorage에 저장
       login({
         name: '전민서', // TODO: Google OAuth에서 받아올 이름
@@ -37,6 +40,7 @@ function Login() {
         doubleMajor,
         linkedMajor,
         career,
+        pdfFileName: pdfFile?.name || null,
         createdAt: new Date().toISOString(),
       })
       navigate('/home')
@@ -49,6 +53,22 @@ function Login() {
     // TODO: 실제 Google OAuth 연동 시 여기에 구현
     // window.location.href = '/api/auth/google'
     setStep(1)
+  }
+
+  const handlePdfDrop = (e) => {
+    e.preventDefault()
+    setPdfDragging(false)
+    const file = e.dataTransfer.files[0]
+    if (file && file.type === 'application/pdf') {
+      setPdfFile(file)
+    }
+  }
+
+  const handlePdfSelect = (e) => {
+    const file = e.target.files[0]
+    if (file && file.type === 'application/pdf') {
+      setPdfFile(file)
+    }
   }
 
   // Step 0: 구글 로그인 화면
@@ -103,19 +123,85 @@ function Login() {
 
           {/* 스텝 인디케이터 */}
           <div className="flex items-center mb-6">
-            {[1, 2, 3].map(i => (
+            {[1, 2, 3, 4].map(i => (
               <div key={i} className="flex items-center">
                 <div className="flex flex-col items-center gap-1">
                   <div className={`w-7 h-7 rounded-full text-xs font-bold flex items-center justify-center ${step > i ? 'bg-green-300 text-white' : step === i ? 'bg-green-700 text-white' : 'bg-gray-200 text-gray-400'}`}>{i}</div>
-                  <span className={`text-[10px] ${step === i ? 'text-green-700 font-semibold' : 'text-gray-300'}`}>{['기본정보', '전공선택', '진로입력'][i - 1]}</span>
+                  <span className={`text-[10px] ${step === i ? 'text-green-700 font-semibold' : 'text-gray-300'}`}>{['이수표 업로드', '기본정보', '전공선택', '진로입력'][i - 1]}</span>
                 </div>
-                {i < 3 && <div className={`w-10 h-0.5 mx-1.5 mb-4 ${step > i ? 'bg-green-300' : 'bg-gray-200'}`} />}
+                {i < 4 && <div className={`w-8 h-0.5 mx-1 mb-4 ${step > i ? 'bg-green-300' : 'bg-gray-200'}`} />}
               </div>
             ))}
           </div>
 
-          {/* STEP 1 */}
+          {/* STEP 1: PDF 업로드 */}
           {step === 1 && (
+            <div className="animate-fade-in">
+              <div className="bg-gray-50 rounded-2xl p-6">
+                <label className="block text-sm font-semibold text-gray-700 mb-2">학점이수표 PDF 업로드 <span className="text-red-500">*</span></label>
+                <p className="text-xs text-gray-400 mb-4">숙명포털 → 학사정보 → 성적/이수표 → 학점이수표 PDF 다운로드 후 업로드해주세요</p>
+
+                <div
+                  className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition ${
+                    pdfDragging
+                      ? 'border-green-500 bg-green-50'
+                      : pdfFile
+                        ? 'border-green-400 bg-green-50'
+                        : 'border-gray-200 hover:border-green-400 hover:bg-green-50/50'
+                  }`}
+                  onDragOver={(e) => { e.preventDefault(); setPdfDragging(true) }}
+                  onDragLeave={() => setPdfDragging(false)}
+                  onDrop={handlePdfDrop}
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".pdf"
+                    className="hidden"
+                    onChange={handlePdfSelect}
+                  />
+
+                  {pdfFile ? (
+                    <div>
+                      <div className="text-4xl mb-2">✅</div>
+                      <p className="text-sm font-semibold text-green-700">{pdfFile.name}</p>
+                      <p className="text-xs text-gray-400 mt-1">{(pdfFile.size / 1024).toFixed(1)} KB · 클릭하여 변경</p>
+                    </div>
+                  ) : (
+                    <div>
+                      <div className="text-4xl mb-2">📄</div>
+                      <p className="text-sm font-medium text-gray-600">PDF 파일을 드래그하거나 클릭하여 선택</p>
+                      <p className="text-xs text-gray-300 mt-1">학점이수표 PDF만 업로드 가능합니다</p>
+                    </div>
+                  )}
+                </div>
+
+                <div className="mt-4 bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                  <p className="text-xs text-yellow-700 leading-relaxed">
+                    💡 <strong>다운로드 방법:</strong> 숙명포털 로그인 → 학사정보 → 성적조회 → 학점이수표 → PDF 다운로드
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-6">
+                <button
+                  onClick={() => goStep(2)}
+                  disabled={!pdfFile}
+                  className={`w-full py-3.5 rounded-xl text-sm font-bold transition ${
+                    pdfFile
+                      ? 'bg-gradient-to-r from-green-700 to-green-600 text-white shadow-lg shadow-green-700/30 hover:-translate-y-0.5'
+                      : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                  }`}
+                >
+                  다음 →
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* STEP 2: 기본정보 */}
+          {step === 2 && (
             <div className="animate-fade-in">
               <div className="bg-gray-50 rounded-2xl p-6 space-y-5">
                 <div>
@@ -146,13 +232,13 @@ function Login() {
                 </div>
               </div>
               <div className="mt-6">
-                <button onClick={() => goStep(2)} className="w-full py-3.5 bg-gradient-to-r from-green-700 to-green-600 text-white rounded-xl text-sm font-bold shadow-lg shadow-green-700/30 hover:-translate-y-0.5 transition">다음 →</button>
+                <button onClick={() => goStep(3)} className="w-full py-3.5 bg-gradient-to-r from-green-700 to-green-600 text-white rounded-xl text-sm font-bold shadow-lg shadow-green-700/30 hover:-translate-y-0.5 transition">다음 →</button>
               </div>
             </div>
           )}
 
-          {/* STEP 2 */}
-          {step === 2 && (
+          {/* STEP 3: 전공선택 */}
+          {step === 3 && (
             <div className="animate-fade-in space-y-4">
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">추가 전공 유형 <span className="text-xs text-gray-300 font-normal">(복수 선택 가능)</span></label>
@@ -178,35 +264,35 @@ function Login() {
                 </div>
               )}
               <div className="flex gap-2.5 mt-5">
-                <button onClick={() => goStep(1)} className="flex-1 py-3 bg-white border border-gray-200 rounded-xl text-sm font-semibold text-gray-500 hover:bg-gray-50 transition">← 이전</button>
-                <button onClick={() => goStep(3)} className="flex-[2] py-3 bg-gradient-to-r from-green-700 to-green-600 text-white rounded-xl text-sm font-bold shadow-lg shadow-green-700/30 hover:-translate-y-0.5 transition">다음 →</button>
+                <button onClick={() => goStep(2)} className="flex-1 py-3 bg-white border border-gray-200 rounded-xl text-sm font-semibold text-gray-500 hover:bg-gray-50 transition">← 이전</button>
+                <button onClick={() => goStep(4)} className="flex-[2] py-3 bg-gradient-to-r from-green-700 to-green-600 text-white rounded-xl text-sm font-bold shadow-lg shadow-green-700/30 hover:-translate-y-0.5 transition">다음 →</button>
               </div>
             </div>
           )}
 
-          {/* STEP 3 */}
-          {step === 3 && (
+          {/* STEP 4: 진로입력 */}
+          {step === 4 && (
             <div className="animate-fade-in space-y-3">
               <div className="bg-green-50 border border-green-200 rounded-xl p-3.5">
                 <p className="text-xs text-gray-600 leading-relaxed mb-2">🎯 관심 진로나 희망 직무를 자유롭게 입력해주세요.<br/>AI가 맞춤 커리큘럼을 추천해드려요.</p>
                 <textarea value={career} onChange={e => setCareer(e.target.value)} placeholder="예) 데이터 분석가, 백엔드 개발자, 마케터..." className="w-full border border-green-200 rounded-lg px-3 py-2 text-sm bg-white resize-none h-[70px] outline-none focus:border-green-600" />
               </div>
-              <button onClick={() => goStep(4)} className="w-full py-2.5 bg-gray-100 border border-dashed border-gray-300 rounded-lg text-sm text-gray-400 hover:bg-gray-200 transition">🤷 모르겠어요 / 나중에 입력할게요</button>
+              <button onClick={() => goStep(5)} className="w-full py-2.5 bg-gray-100 border border-dashed border-gray-300 rounded-lg text-sm text-gray-400 hover:bg-gray-200 transition">🤷 모르겠어요 / 나중에 입력할게요</button>
               <p className="text-[11px] text-gray-300">건너뛰면 필수 이수과목 기반으로 로드맵을 설계해드려요</p>
               <div className="flex gap-2.5 mt-5">
-                <button onClick={() => goStep(2)} className="flex-1 py-3 bg-white border border-gray-200 rounded-xl text-sm font-semibold text-gray-500 hover:bg-gray-50 transition">← 이전</button>
-                <button onClick={() => goStep(4)} className="flex-[2] py-3 bg-gradient-to-r from-green-700 to-green-600 text-white rounded-xl text-sm font-bold shadow-lg shadow-green-700/30 hover:-translate-y-0.5 transition">완료 →</button>
+                <button onClick={() => goStep(3)} className="flex-1 py-3 bg-white border border-gray-200 rounded-xl text-sm font-semibold text-gray-500 hover:bg-gray-50 transition">← 이전</button>
+                <button onClick={() => goStep(5)} className="flex-[2] py-3 bg-gradient-to-r from-green-700 to-green-600 text-white rounded-xl text-sm font-bold shadow-lg shadow-green-700/30 hover:-translate-y-0.5 transition">완료 →</button>
               </div>
             </div>
           )}
 
-          {/* STEP 4 완료 */}
-          {step === 4 && (
+          {/* STEP 5 완료 */}
+          {step === 5 && (
             <div className="animate-fade-in text-center py-8">
               <div className="text-6xl mb-4">🌿</div>
               <h3 className="text-xl font-bold text-green-900 mb-2">설정 완료!</h3>
               <p className="text-sm text-gray-400 leading-relaxed mb-7">입력하신 정보를 바탕으로<br/>맞춤 로드맵을 준비했어요.</p>
-              <button onClick={() => goStep(5)} className="px-11 py-3.5 bg-gradient-to-r from-green-700 to-green-600 text-white rounded-2xl text-base font-bold shadow-lg shadow-green-700/30 hover:-translate-y-0.5 transition">홈으로 이동 →</button>
+              <button onClick={() => goStep(6)} className="px-11 py-3.5 bg-gradient-to-r from-green-700 to-green-600 text-white rounded-2xl text-base font-bold shadow-lg shadow-green-700/30 hover:-translate-y-0.5 transition">홈으로 이동 →</button>
             </div>
           )}
         </div>
