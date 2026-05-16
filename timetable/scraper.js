@@ -7,17 +7,22 @@ const URL =
 async function scrapeDepartment(page, deptName) {
   console.log(`[${deptName}] 스크래핑 시작...`);
 
-  // 학과전공 드롭다운 클릭
-  await page.evaluate(() => {
-    document.querySelectorAll('[ct="CB"]')[4].click();
-  });
-  await page.waitForTimeout(1000);
+  const cbCount = await page.evaluate(
+    () => document.querySelectorAll('[ct="CB"]').length,
+  );
+  console.log(`드롭다운 개수: ${cbCount}`);
 
-  // 학과 선택
+  await page.evaluate(() => {
+    const dropdowns = Array.from(document.querySelectorAll('[ct="CB"]'));
+    dropdowns[4].click();
+  });
+  await page.waitForTimeout(2000); // 2초로 늘림
+
   const found = await page.evaluate((dept) => {
-    const options = document
-      .querySelectorAll('[ct="LIB_P"]')[4]
-      .querySelectorAll('[ct="LIB_I"]');
+    const allLibP = document.querySelectorAll('[ct="LIB_P"]');
+    const lastLibP = allLibP[allLibP.length - 1];
+    if (!lastLibP) return false;
+    const options = lastLibP.querySelectorAll('[ct="LIB_I"]');
     const target = Array.from(options).find(
       (el) => el.innerText.trim() === dept,
     );
@@ -35,13 +40,13 @@ async function scrapeDepartment(page, deptName) {
 
   await page.waitForTimeout(1000);
 
-  // 검색 버튼 클릭
   await page.evaluate(() => {
-    document.querySelectorAll('[ct="B"]')[1].click();
+    const btns = Array.from(document.querySelectorAll('[ct="B"]'));
+    const searchBtn = btns.find((el) => el.innerText.trim() === "검색");
+    if (searchBtn) searchBtn.click();
   });
   await page.waitForTimeout(3000);
 
-  // 데이터 긁기
   const courses = await page.evaluate(() => {
     const cells = Array.from(document.querySelectorAll("td.urSTC")).map((td) =>
       td.innerText.trim(),
@@ -59,13 +64,13 @@ async function scrapeDepartment(page, deptName) {
     while (i < cells.length) {
       if (courseTypes.includes(cells[i])) {
         result.push({
-          type: cells[i],
           name: cells[i + 1],
           category: cells[i + 6],
           time: cells[i + 7],
           professor: cells[i + 8],
           year: cells[i + 9],
-          credit: cells[i + 10]?.split("/")[0]?.trim(),
+          credit: cells[i + 10],
+          note: cells[i + 24],
         });
         i += 27;
       } else {
@@ -80,21 +85,34 @@ async function scrapeDepartment(page, deptName) {
 }
 
 async function main() {
-  const browser = await chromium.launch({ headless: false, slowMo: 100 });
+  const browser = await chromium.launch({ headless: false, slowMo: 50 });
   const page = await browser.newPage();
 
   await page.goto(URL, { waitUntil: "networkidle", timeout: 60000 });
-  console.log("페이지 로드 완료");
-  await page.waitForTimeout(3000);
+  await page.waitForTimeout(1000);
 
-  // 학과/전공 탭 클릭
+  const hasError = await page.evaluate(() => {
+    return (
+      document.title.includes("500") ||
+      document.body.innerText.includes("SAP Internal Server Error")
+    );
+  });
+
+  if (hasError) {
+    console.log("SAP 오류 감지, 새로고침...");
+    await page.reload({ waitUntil: "networkidle" });
+    await page.waitForTimeout(2000);
+  }
+
+  console.log("페이지 로드 완료");
+  await page.waitForTimeout(2000);
+
   const tab = page
     .locator(".lsTbsv5-ItemTitle", { hasText: "학과 / 전공" })
     .first();
   await tab.click({ timeout: 60000 });
-  await page.waitForTimeout(3000);
+  await page.waitForTimeout(5000);
 
-  // 원하는 학과 이름으로 바꿔
   const deptName = "경영학부";
   const courses = await scrapeDepartment(page, deptName);
 
