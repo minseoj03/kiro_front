@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import MAJORS from '../data/majors'
+import { useUser } from '../context/UserContext'
 
 function Login() {
   const [step, setStep] = useState(0) // 0: 구글 로그인, 1~4: 정보 입력
@@ -8,7 +9,13 @@ function Login() {
   const [majorSearch, setMajorSearch] = useState('')
   const [selectedMajor, setSelectedMajor] = useState(null)
   const [majorOpen, setMajorOpen] = useState(false)
+  const [year, setYear] = useState('2학년')
+  const [semester, setSemester] = useState('1학기')
+  const [doubleMajor, setDoubleMajor] = useState('')
+  const [linkedMajor, setLinkedMajor] = useState('')
+  const [career, setCareer] = useState('')
   const navigate = useNavigate()
+  const { login } = useUser()
 
   const filteredMajors = MAJORS.filter(m => m.text.toLowerCase().includes(majorSearch.toLowerCase()))
 
@@ -17,7 +24,24 @@ function Login() {
   }
 
   const goStep = (n) => {
-    if (n === 5) { navigate('/home'); return }
+    if (n === 5) {
+      // 모든 정보를 Context + localStorage에 저장
+      login({
+        name: '전민서', // TODO: Google OAuth에서 받아올 이름
+        email: 'minseoj03@sookmyung.ac.kr',
+        major: selectedMajor?.text || '',
+        majorCode: selectedMajor?.value || '',
+        year: parseInt(year),
+        semester: parseInt(semester),
+        majorTypes,
+        doubleMajor,
+        linkedMajor,
+        career,
+        createdAt: new Date().toISOString(),
+      })
+      navigate('/home')
+      return
+    }
     setStep(n)
   }
 
@@ -112,10 +136,10 @@ function Login() {
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">현재 재학 학기 <span className="text-red-500">*</span></label>
                   <div className="flex gap-3">
-                    <select className="flex-1 px-4 py-3 border border-gray-200 rounded-xl text-sm bg-white outline-none focus:border-green-500 focus:shadow-sm transition appearance-none cursor-pointer">
+                    <select value={year} onChange={e => setYear(e.target.value)} className="flex-1 px-4 py-3 border border-gray-200 rounded-xl text-sm bg-white outline-none focus:border-green-500 focus:shadow-sm transition appearance-none cursor-pointer">
                       <option>1학년</option><option>2학년</option><option>3학년</option><option>4학년</option>
                     </select>
-                    <select className="flex-1 px-4 py-3 border border-gray-200 rounded-xl text-sm bg-white outline-none focus:border-green-500 focus:shadow-sm transition appearance-none cursor-pointer">
+                    <select value={semester} onChange={e => setSemester(e.target.value)} className="flex-1 px-4 py-3 border border-gray-200 rounded-xl text-sm bg-white outline-none focus:border-green-500 focus:shadow-sm transition appearance-none cursor-pointer">
                       <option>1학기</option><option>2학기</option>
                     </select>
                   </div>
@@ -144,13 +168,13 @@ function Login() {
               {majorTypes.includes('복수전공') && (
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-gray-500 w-16 font-medium">복수전공</span>
-                  <select className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm bg-gray-50 outline-none focus:border-green-600"><option value="">전공 선택</option><option>경영학부</option><option>컴퓨터과학전공</option><option>경제학부</option></select>
+                  <select value={doubleMajor} onChange={e => setDoubleMajor(e.target.value)} className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm bg-gray-50 outline-none focus:border-green-600"><option value="">전공 선택</option><option>경영학부</option><option>컴퓨터과학전공</option><option>경제학부</option></select>
                 </div>
               )}
               {majorTypes.includes('연계전공') && (
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-gray-500 w-16 font-medium">연계전공</span>
-                  <select className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm bg-gray-50 outline-none focus:border-green-600"><option value="">전공 선택</option><option>빅데이터사이언스</option><option>인공지능</option><option>핀테크</option></select>
+                  <select value={linkedMajor} onChange={e => setLinkedMajor(e.target.value)} className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm bg-gray-50 outline-none focus:border-green-600"><option value="">전공 선택</option><option>빅데이터사이언스</option><option>인공지능</option><option>핀테크</option></select>
                 </div>
               )}
               <div className="flex gap-2.5 mt-5">
@@ -165,7 +189,7 @@ function Login() {
             <div className="animate-fade-in space-y-3">
               <div className="bg-green-50 border border-green-200 rounded-xl p-3.5">
                 <p className="text-xs text-gray-600 leading-relaxed mb-2">🎯 관심 진로나 희망 직무를 자유롭게 입력해주세요.<br/>AI가 맞춤 커리큘럼을 추천해드려요.</p>
-                <textarea placeholder="예) 데이터 분석가, 백엔드 개발자, 마케터..." className="w-full border border-green-200 rounded-lg px-3 py-2 text-sm bg-white resize-none h-[70px] outline-none focus:border-green-600" />
+                <textarea value={career} onChange={e => setCareer(e.target.value)} placeholder="예) 데이터 분석가, 백엔드 개발자, 마케터..." className="w-full border border-green-200 rounded-lg px-3 py-2 text-sm bg-white resize-none h-[70px] outline-none focus:border-green-600" />
               </div>
               <button onClick={() => goStep(4)} className="w-full py-2.5 bg-gray-100 border border-dashed border-gray-300 rounded-lg text-sm text-gray-400 hover:bg-gray-200 transition">🤷 모르겠어요 / 나중에 입력할게요</button>
               <p className="text-[11px] text-gray-300">건너뛰면 필수 이수과목 기반으로 로드맵을 설계해드려요</p>
