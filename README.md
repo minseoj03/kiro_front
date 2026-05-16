@@ -74,7 +74,3 @@ VITE_API_URL=http://localhost:8000/api
 
 개발 중에는 Vite 프록시가 `/api` 요청을 백엔드로 전달합니다.
 
-## 팀 레포
-
-- Frontend: https://github.com/minseoj03/kiro_front
-- Team: https://github.com/gardenew12/2026-1Kirothon (developers 브랜치 → front/)
